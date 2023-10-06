@@ -1,0 +1,61 @@
+'''
+We want to find U(x,t) and F(x,t) at any given (x,t) --> (pressure, density, velocity)
+
+NEXT STEPS:
+* add the dx vs dt condition
+* change the time and space scales --> calculate time step for each space step then take the minimum 
+* add the pressure variable
+* check how to fix division by zero error
+* compile and run the Fortran code
+'''
+
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+
+# constants
+e = 1
+gamma = 2
+c = math.sqrt(gamma * (gamma-1) * e)
+dx = 1 
+dt = 1 
+time_steps = 50 
+
+v_results = np.empty(time_steps)
+p_results = np.empty(time_steps)
+
+# initialize v and p for entire x grid (sample is length of five x units)
+array_v = np.array([0, 0, 0, 0, 0])
+array_p = np.array([2, 2, 2, 2, 2])
+
+for i in range(0, time_steps, dt):
+	array_pv = array_v * array_p
+	array_E = array_p * e + 0.5 * array_p * (array_v)**2
+	array_P = (gamma - 1) * array_p * e
+	
+	# the vectors U and F 
+	#U = (np.matrix([array_p, array_pv, array_E])).transpose()
+	U = (np.array([array_p, array_pv, array_E])).transpose() # use arrays instead of matrices
+	F = (np.array([array_pv, array_p * (array_v)**2 + array_P , (array_E + array_P) * array_v ])).transpose()
+	
+	y1 = array_v + c #for lambda +
+	y2 = array_v - c #for lambda - 
+	
+	L = np.ones((len(U),3))
+	for i in range(1,len(U)-1): #the first and last value of the array do not change (yet!)
+		alpha1 = np.maximum(np.zeros(3), y1[i] * U[i], y1[i] * U[i+1]) #alpha + for F(i+1/2)
+		alpha2 = np.maximum(np.zeros(3), -y2[i] * U[i], -y2[i] * U[i+1]) #alpha - for F(i+1/2)
+		beta1 = np.maximum(np.zeros(3), y1[i] * U[i-1], y1[i] * U[i]) #beta + for F(i-1/2)
+		beta2 = np.maximum(np.zeros(3), -y2[i] * U[i-1], -y2[i] * U[i]) #beta - for F(i-1/2)
+		
+		Fright = ( alpha1 * F[i] + alpha2 * F[i+1] + alpha1 * alpha2 * (U[i+1] - U[i]) ) / (alpha1 + alpha2) #F(i+1/2)
+		Fleft = ( beta1 * F[i-1] + beta2 * F[i] + beta1 * beta2 * (U[i] - U[i-1]) ) / (beta1 + beta2) #F(i-1/2)
+		
+		L[i] = (-Fright + Fleft) / (dx)
+	
+	U_next = U + dt * L
+	array_p = (U_next.transpose())[0]
+	array_v = (U_next.transpose())[1] / array_p
+	
+	np.append(v_results, array_v)
+	np.append(p_results, array_p)
